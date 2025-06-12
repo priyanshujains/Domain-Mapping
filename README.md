@@ -1,16 +1,6 @@
-# Full-Stack Web Project with Nginx, Docker, and SSL
+# 🚀 Production-Ready Full Stack Deployment using Docker + Nginx + Certbot
 
-This project is a full-stack web application setup that includes:
 
-- A **Frontend** (e.g., React) served on port 3000
-- A **Backend** (e.g., Flask or Node.js API) served on port 5000
-- An **Nginx** reverse proxy to route traffic and handle SSL termination
-
----
-
-## 📁 Project Structure
-
-project/ ├── frontend/ │ └── Dockerfile ├── backend/ │ └── Dockerfile └── nginx/ └── default.conf
 
 
 ---
@@ -21,7 +11,7 @@ project/ ├── frontend/ │ └── Dockerfile ├── backend/ │ └
 
 - Redirects HTTP to HTTPS
 - Proxies frontend requests to `localhost:5173`
-- Proxies backend API requests to `localhost:3000`
+- Proxies backend API requests to `localhost:8080`
 - Handles SSL termination using certificates from Let's Encrypt
 
 ---
@@ -77,7 +67,7 @@ production-setup/
 
 ### ✅ Step 1: Clone the Repository
 ```bash
-git clone https://github.com/<your-username>/<your-repo>.git
+git clone https://github.com/priyanshujains/Domain-Mapping.git
 cd production-setup
 ```
 
