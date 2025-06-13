@@ -17,8 +17,8 @@ jobs:
       uses: SonarSource/sonarcloud-github-action@v2
       with:
         projectBaseDir: .
-        sonar.organization: priyanshujains
-        sonar.projectKey: priyanshujains_Domain-Mapping
+        organization: priyanshujains
+        projectKey: priyanshujains_Domain-Mapping
       env:
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
