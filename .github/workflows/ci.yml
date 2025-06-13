@@ -17,10 +17,11 @@ jobs:
       uses: SonarSource/sonarcloud-github-action@v2
       with:
         projectBaseDir: .
-      env:
-        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         SONAR_PROJECT_KEY: priyanshujains_Domain-Mapping
         SONAR_ORGANIZATION: priyanshujains
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
 
     # Step 2: OWASP Dependency-Check
     # - name: Run OWASP Dependency-Check
