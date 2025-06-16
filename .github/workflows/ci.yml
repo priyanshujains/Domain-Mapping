@@ -33,6 +33,7 @@ jobs:
 
       - name: Run Snyk to check for vulnerabilities
         uses: snyk/actions/node@master
+        working-directory: frontend/message-app
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
