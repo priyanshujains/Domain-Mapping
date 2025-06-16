@@ -28,7 +28,7 @@ jobs:
           node-version: '18' # Specify your Node.js version
 
       - name: Install dependencies
-        working-directory: frontend/message-app
+        working-directory: Domain-Mapping/frontend/message-app
         run: npm install
 
       - name: Run Snyk to check for vulnerabilities
