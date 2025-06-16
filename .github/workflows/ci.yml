@@ -31,13 +31,13 @@ jobs:
         working-directory: frontend/message-app
         run: npm install
 
-      - name: Run Snyk to check for vulnerabilities
+      - name: Run Snyk SCA scan on frontend
         uses: snyk/actions/node@master
-        working-directory: frontend/message-app
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
           command: monitor
+          args: --file=frontend/message-app/package.json --project-folder=frontend/message-app
 
   SAST_sonarcloud_scan:
     name: Run SonarCloud SAST Scan
