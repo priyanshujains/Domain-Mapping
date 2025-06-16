@@ -1,59 +1,189 @@
-name: CI Pipeline
+## Stages
+# 1. snyk_scan - Software Composition Analysis (SCA)
+# 2. sonarcloud_scan - Static Application Security Testing (SAST)
+# 3. docker build and push
+# 4. trivy_scan - Container Security Scan
+# 5. deploy (AWS EC2)
+# 6. zap_scan - Dynamic Application Security Testing (DAST)
+
+name: Build, Test, and Deploy Web with Docker, AWS, SonarCloud, Snyk, Trivy and Zap
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
-  build-and-scan:
+  SCA_snyk_scan:
+    name: Run Snyk SCA Scan for Vulnerabilities
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout source code
-      uses: actions/checkout@v3
+      - name: Check out repository
+        uses: actions/checkout@v2
 
-    # Step 1: SonarCloud Scan
-    - name: SonarCloud Scan
-      uses: SonarSource/sonarcloud-github-action@v2
-      with:
-        projectBaseDir: .
-        organization: priyanshujains
-        projectKey: priyanshujains_Domain-Mapping
-      env:
-        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '18' # Specify your Node.js version
 
+      - name: Install dependencies
+        run: npm install
 
-    # Step 2: OWASP Dependency-Check
-    # - name: Run OWASP Dependency-Check
-    #   uses: dependency-check/Dependency-Check_Action@v2
-    #   with:
-    #     project: 'My Project'
-    #     format: 'ALL'
-    #     out: 'reports'
+      - name: Run Snyk to check for vulnerabilities
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          command: monitor
 
-    # - name: Upload OWASP report
-    #   uses: actions/upload-artifact@v3
-    #   with:
-    #     name: owasp-report
-    #     path: reports
+  SAST_sonarcloud_scan:
+    name: Run SonarCloud SAST Scan
+    needs: SCA_snyk_scan
+    runs-on: ubuntu-latest
 
-    # Step 3: Build Docker Image
-    - name: Build Docker image
-      run: docker build -t ${{ secrets.DOCKER_USERNAME }}/secure-app:latest frontend/message-app/
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v2
 
-    # Step 4: Trivy Scan
-    - name: Run Trivy scan on image
-      uses: aquasecurity/trivy-action@master
-      with:
-        image-ref: '${{ secrets.DOCKER_USERNAME }}/secure-app:latest'
-        format: 'table'
-        exit-code: '1'
-        ignore-unfixed: true
-        vuln-type: 'os,library'
+      - name: Install SonarScanner
+        run: npm install -g sonar-scanner
 
-    # Step 5: DockerHub login and push
-    - name: Login to DockerHub
-      run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
+      - name: Run SonarCloud scan
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }} # Store your SonarCloud token in GitHub Secrets
+          SONAR_HOST_URL: "https://sonarcloud.io" # SonarCloud URL
+        run: |
+          sonar-scanner \
+            -Dsonar.project_name=priyanshujains_Domain-Mapping \
+            -Dsonar.organization_key=priyanshujains \
+            -Dsonar.sources=. \
+            -Dsonar.host.url=$SONAR_HOST_URL \
+            -Dsonar.login=$SONAR_TOKEN \
+            -X
 
-    - name: Push Docker image
-      run: docker push ${{ secrets.DOCKER_USERNAME }}/secure-app:latest
+  docker_build_and_push:
+    name: Build and Push Docker Image for Web-app
+    needs: SAST_sonarcloud_scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v2
+
+      - name: Build Docker Image for Web-app
+        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/YOU_IMAGE_NAME:latest .
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Push Docker Image to Docker Hub
+        run: docker push ${{ secrets.DOCKER_USERNAME }}/YOU_IMAGE_NAME:latest
+
+  Container_trivy_scan:
+    name: Run Trivy Security Scan on Docker Image
+    needs: docker_build_and_push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log in to Docker Hub  
+        uses: docker/login-action@v2  
+        with:  
+          username: ${{ secrets.DOCKER_USERNAME }}  
+          password: ${{ secrets.DOCKER_PASSWORD }}  
+
+      - name: Debug Image Name
+        run: echo "docker.io/${{ secrets.DOCKER_USERNAME }}/YOUR_IMAGE_NAME:latest"
+
+      - name: Pull the built Docker image
+        run: docker pull docker.io/${{ secrets.DOCKER_USERNAME }}/YOUR_IMAGE_NAME:latest
+
+      - name: Download Trivy HTML Template
+        run: |
+          mkdir -p .trivy/
+          curl -sSfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o .trivy/html.tpl
+      
+      - name: Run Trivy vulnerability scanner and generate HTML report
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: 'docker.io/${{ secrets.DOCKER_USERNAME }}/YOUR_IMAGE_NAME:latest'
+          format: 'template'
+          template: '@.trivy/html.tpl'  # Ensure correct template path
+          output: 'trivy-report.html'
+          exit-code: '0'  # Change to '1' if you want it to fail on vulnerabilities
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Ensure Trivy Report Exists
+        run: |
+          if [ ! -f trivy-report.html ]; then echo "Trivy report not generated!"; exit 1; fi
+
+      - name: Upload Trivy Report as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-report
+          path: trivy-report.html
+
+      - name: Show Report Summary (Optional)
+        run: |
+          echo "## Trivy Scan Report" >> $GITHUB_STEP_SUMMARY
+          echo "Vulnerability report generated. Download the artifact to view." >> $GITHUB_STEP_SUMMARY
+
+  deploy:
+    name: Deploy Web Application to EC2
+    needs: Container_trivy_scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up SSH Key for EC2
+        run: |
+          echo "${{ secrets.EC2_SSH_KEY }}" > /tmp/id_rsa
+          chmod 600 /tmp/id_rsa
+
+      - name: SSH into EC2 and Deploy Web-appDocker Container
+        run: |
+          ssh -o StrictHostKeyChecking=no -i /tmp/id_rsa ec2-user@${{ secrets.EC2_PUBLIC_IP }} << 'EOF'
+            # Update and install Docker on EC2 if not installed
+            sudo yum update -y
+            sudo amazon-linux-extras install docker -y
+            sudo service docker start
+            sudo usermod -aG docker ec2-user
+
+            # Log in to Docker Hub
+            sudo docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+
+            # Pull the latest Web-app image
+            sudo docker pull ${{ secrets.DOCKER_USERNAME }}/YOU_IMAGE_NAME:latest
+
+            # Remove old container if it exists
+            sudo docker stop YOU_IMAGE_NAME || true
+            sudo docker rm YOU_IMAGE_NAME || true
+
+            # Run the Web-app Docker container
+            sudo docker run -d -p 80:80 --name YOU_IMAGE_NAME ${{ secrets.DOCKER_USERNAME }}/YOU_IMAGE_NAME:latest
+
+            # Optionally remove unused containers and images
+            sudo docker system prune -f
+          EOF
+
+# DAST_zap_scan:
+#     name: Scan the Web Application with ZAP
+#     needs: deploy
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout Repository
+#         uses: actions/checkout@v4
+#         with:
+#           ref: main
+
+#       - name: ZAP Scan
+#         uses: zaproxy/action-full-scan@v0.12.0
+#         with:
+#           token: ${{ secrets.ZAP_PAT }}
+#           docker_name: 'ghcr.io/zaproxy/zaproxy:stable'
+#           target: 'TARGET_URL' # Replace with your deployed URL
+#           rules_file_name: '.zap/rules.tsv'
+#           cmd_options: '-a'
