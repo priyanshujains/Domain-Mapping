@@ -13,7 +13,7 @@ COPY . .
 RUN npm run build
 
 # Use Nginx to serve the built app
-FROM nginx:stable-alpine
+FROM nginx:1.29.5-alpine3.23
 
 # Remove default static files
 RUN rm -rf /usr/share/nginx/html/*
